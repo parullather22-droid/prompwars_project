@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>INBOX INVADER: ZERO PROTOCOL</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Retro & Tech Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700;800&family=Press+Start+2P&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            pixel: ['"Press Start 2P"', 'monospace'],
+            cyber: ['"Chakra Petch"', 'sans-serif'],
+          },
+          colors: {
+            neonCyan: '#00f3ff',
+            neonPink: '#ff007f',
+            neonGreen: '#00ff66',
+            neonYellow: '#ffe600',
+            arcadeBg: '#090a10',
+            arcadePanel: '#121424'
+          },
+          boxShadow: {
+            'glow-cyan': '0 0 20px rgba(0, 243, 255, 0.4)',
+            'glow-pink': '0 0 20px rgba(255, 0, 127, 0.4)',
+            'glow-green': '0 0 20px rgba(0, 255, 102, 0.4)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Scanlines CRT Overlay */
+    .crt::after {
+      content: " ";
+      display: block;
+      position: fixed;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      z-index: 50;
+      background-size: 100% 3px, 3px 100%;
+      pointer-events: none;
+    }
+    .shake {
+      animation: screenShake 0.2s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    @keyframes screenShake {
+      10%, 90% { transform: translate3d(-2px, 0, 0); }
+      20%, 80% { transform: translate3d(3px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-5px, 0, 0); }
+      40%, 60% { transform: translate3d(5px, 0, 0); }
+    }
+    .touch-none {
+      touch-action: none;
+    }
+  </style>
+</head>
+
+<body class="bg-arcadeBg text-slate-100 font-cyber min-h-screen crt overflow-x-hidden select-none">
+
+  <!-- TOP HEADER / HUD -->
+  <header class="border-b border-neonCyan/30 bg-arcadePanel/80 backdrop-blur px-4 py-3 sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      
+      <!-- Brand & Mode -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-neonPink to-neonCyan flex items-center justify-center font-pixel text-black font-bold text-lg shadow-glow-cyan">
+          ⚡
+        </div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-neonCyan via-white to-neonPink">
+            INBOX INVADER <span class="text-xs px-2 py-0.5 rounded bg-neonCyan/20 text-neonCyan border border-neonCyan/40 font-mono">ZERO PROTOCOL</span>
+          </h1>
+          <p class="text-xs text-slate-400">Play the game. Vanquish the clutter.</p>
+        </div>
+      </div>
+
+      <!-- Arcade Status Counters -->
+      <div class="flex items-center gap-4 md:gap-6 bg-slate-900/90 px-4 py-2 rounded-xl border border-slate-700">
+        <div>
+          <span class="text-[10px] text-slate-400 font-mono block">SCORE</span>
+          <span id="scoreDisplay" class="font-pixel text-neonCyan text-sm md:text-base">000000</span>
+        </div>
+        <div class="h-6 w-px bg-slate-700"></div>
+        <div>
+          <span class="text-[10px] text-slate-400 font-mono block">STREAK</span>
+          <span id="streakDisplay" class="font-pixel text-neonPink text-sm md:text-base">x1.0</span>
+        </div>
+        <div class="h-6 w-px bg-slate-700"></div>
+        <div>
+          <span class="text-[10px] text-slate-400 font-mono block">REMAINING</span>
+          <span id="remainingDisplay" class="font-pixel text-neonYellow text-sm md:text-base">500</span>
+        </div>
+      </div>
+
+      <!-- Actions & Mode Selectors -->
+      <div class="flex items-center gap-2">
+        <button id="soundToggle" onclick="toggleAudio()" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:border-neonCyan text-xs flex items-center gap-1.5 transition">
+          <span id="soundIcon">🔊</span> <span id="soundLabel" class="hidden sm:inline">SFX ON</span>
+        </button>
+        <button onclick="openApiModal()" class="px-3 py-1.5 rounded-lg border border-neonPink/50 bg-neonPink/10 hover:bg-neonPink/20 text-neonPink text-xs font-bold transition flex items-center gap-1">
+          <span>⚙️</span> <span id="apiStatusBadge">DEMO MODE</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN VIEWPORT -->
+  <main class="max-w-7xl mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+    
+    <!-- LEFT PANEL: STATS & LIVE LOG (3 Cols) -->
+    <aside class="lg:col-span-3 space-y-4 order-2 lg:order-1">
+      
+      <!-- Real-World Impact Card -->
+      <div class="p-4 rounded-2xl bg-arcadePanel border border-neonCyan/20 relative overflow-hidden shadow-glow-cyan/10">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
+          <h2 class="text-xs font-bold tracking-widest text-neonCyan font-mono uppercase">REAL IMPACT METRICS</h2>
+          <span class="text-xs animate-ping h-2 w-2 rounded-full bg-neonGreen"></span>
+        </div>
+        <div class="space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-400">Emails Purged</span>
+            <span id="purgedCount" class="font-pixel text-sm text-neonGreen">0</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-400">Storage Liberated</span>
+            <span id="storageFreed" class="font-pixel text-sm text-neonCyan">0.0 MB</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-400">Human Time Saved</span>
+            <span id="timeSaved" class="font-pixel text-sm text-neonYellow">0.0 min</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-400">Carbon Offset</span>
+            <span id="carbonSaved" class="font-pixel text-sm text-neonPink">0.0 g CO₂</span>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 leading-relaxed font-mono">
+          🛡️ Safety Net: All deletions are dispatched to <strong class="text-slate-200">Archive/Trash</strong>.
+        </div>
+      </div>
+
+      <!-- Background API Execution Live Stream -->
+      <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 h-64 flex flex-col">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+          <span class="text-[11px] font-mono text-slate-400 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-neonCyan"></span> DISPATCH THREAD
+          </span>
+          <span class="text-[10px] text-slate-400 font-mono">REST JSON</span>
+        </div>
+        <div id="apiConsole" class="flex-1 font-mono text-[10px] leading-relaxed text-slate-400 overflow-y-auto space-y-1.5 scrollbar-thin pr-1">
+          <p class="text-slate-400">// System initiated in Demo Sandbox.</p>
+          <p class="text-slate-400">// 500 clutter items locked & loaded.</p>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- CENTER PLAYGROUND: ARCADE ARENA (6 Cols) -->
+    <section class="lg:col-span-6 flex flex-col items-center justify-center order-1 lg:order-2">
+      
+      <!-- Inbox Pressure Gauge -->
+      <div class="w-full mb-3">
+        <div class="flex justify-between text-xs font-mono mb-1 text-slate-300">
+          <span>INBOX OVERLOAD THREAT LEVEL</span>
+          <span id="pressurePercent" class="text-neonPink font-bold">100% CRITICAL</span>
+        </div>
+        <div class="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-700 p-0.5">
+          <div id="pressureBar" class="h-full bg-gradient-to-r from-neonGreen via-neonYellow to-neonPink rounded-full transition-all duration-300" style="width: 100%;"></div>
+        </div>
+      </div>
+
+      <!-- AI Snarky Commentator HUD -->
+      <div class="w-full mb-4 p-3 rounded-xl bg-slate-900/90 border border-neonCyan/40 text-center relative shadow-glow-cyan/20">
+        <div class="text-[10px] uppercase font-mono tracking-widest text-neonCyan mb-0.5 flex items-center justify-center gap-1.5">
+          <span class="animate-pulse">🤖</span> GEMINI BATTLE COMMENTATOR
+        </div>
+        <div id="aiComment" class="text-sm md:text-base font-semibold text-white tracking-wide min-h-[1.5rem] italic transition-all duration-200">
+          "Target acquired. 500 cold emails and promo garbage blocking your productivity. OBLITERATE THEM!"
+        </div>
+      </div>
+
+      <!-- CARD ARENA CONTAINER -->
+      <div class="relative w-full max-w-md h-[410px] perspective-1000 flex items-center justify-center my-2">
+        
+        <!-- Action Direction Indicators (Glow cues) -->
+        <div id="indicatorLeft" class="absolute -left-4 top-1/2 -translate-y-1/2 p-3 rounded-xl border border-red-500/50 bg-red-950/40 text-red-400 font-pixel text-xs hidden md:flex flex-col items-center gap-1 transition opacity-20">
+          <span>🗑️</span>
+          <span>TRASH</span>
+          <span class="text-[9px] font-mono text-slate-400">[←]</span>
+        </div>
+
+        <div id="indicatorTop" class="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl border border-neonYellow/50 bg-yellow-950/40 text-neonYellow font-pixel text-xs hidden md:flex items-center gap-2 transition opacity-20">
+          <span>⚡</span>
+          <span>UNSUB & BANISH</span>
+          <span class="text-[9px] font-mono text-slate-400">[↑]</span>
+        </div>
+
+        <div id="indicatorRight" class="absolute -right-4 top-1/2 -translate-y-1/2 p-3 rounded-xl border border-neonGreen/50 bg-green-950/40 text-neonGreen font-pixel text-xs hidden md:flex flex-col items-center gap-1 transition opacity-20">
+          <span>⭐</span>
+          <span>KEEP</span>
+          <span class="text-[9px] font-mono text-slate-400">[→]</span>
+        </div>
+
+        <!-- Ghost Backing Cards for 3D Deck Effect -->
+        <div class="absolute w-[92%] h-[380px] bg-slate-800/40 rounded-3xl border border-slate-700/50 transform translate-y-4 scale-95 pointer-events-none"></div>
+        <div class="absolute w-[96%] h-[380px] bg-slate-800/70 rounded-3xl border border-slate-700 transform translate-y-2 scale-[0.98] pointer-events-none"></div>
+
+        <!-- ACTIVE SWIPE CARD -->
+        <div id="activeCard" class="touch-none cursor-grab active:cursor-grabbing absolute w-full h-[390px] rounded-3xl bg-gradient-to-b from-slate-900 to-arcadePanel border-2 border-neonCyan/60 p-6 flex flex-col justify-between shadow-2xl transition-transform duration-100 ease-out z-20">
+          
+          <!-- Card Header -->
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span id="cardCategory" class="px-2.5 py-1 rounded-full text-[10px] font-pixel bg-pink-900/60 text-neonPink border border-neonPink/40">
+                PROMOTIONAL SPAM
+              </span>
+              <span id="cardSize" class="text-xs font-mono text-slate-400">1.8 MB</span>
+            </div>
+
+            <div class="flex items-center gap-3 mb-2">
+              <div id="cardAvatar" class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-lg font-bold">
+                🛍️
+              </div>
+              <div class="overflow-hidden">
+                <h3 id="cardSender" class="text-base font-bold text-white truncate">FastFashion Weekly Deals</h3>
+                <p id="cardEmail" class="text-xs font-mono text-slate-400 truncate">deals@unsolicitedpromos.com</p>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <h4 id="cardSubject" class="text-sm font-bold text-neonCyan line-clamp-1">🔥 90% OFF EVERYTHING (Expires in 2 mins!)</h4>
+              <p id="cardSnippet" class="text-xs text-slate-300 mt-2 line-clamp-4 leading-relaxed font-sans bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                Hey there valued customer! Don't miss out on this super exclusive limited flash blowout liquidation inventory sale. Click here to confirm your cart!
+              </p>
+            </div>
+          </div>
+
+          <!-- Bottom Action Cue Badge inside Card -->
+          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 font-mono">
+            <span>Swipe or Use Keys</span>
+            <span class="text-neonYellow">⭐ / ⚡ / 🗑️</span>
+          </div>
+
+        </div>
+
+        <!-- Game Cleared Overlay (Hidden by default) -->
+        <div id="victoryOverlay" class="hidden absolute inset-0 bg-slate-950/95 border-2 border-neonGreen rounded-3xl p-6 flex flex-col items-center justify-center text-center z-30">
+          <div class="text-4xl mb-3 animate-bounce">🏆</div>
+          <h2 class="text-2xl font-pixel text-neonGreen mb-2">INBOX PURIFIED!</h2>
+          <p class="text-xs text-slate-300 max-w-xs mb-4">You vanquished every messy email in the queue. S-Rank Cyber Execution!</p>
+          <button onclick="resetGame()" class="px-5 py-2.5 bg-neonGreen text-black font-pixel text-xs rounded-xl hover:shadow-glow-green transition">
+            REPLAY SPREE
+          </button>
+        </div>
+
+      </div>
+
+      <!-- RETRO CONTROLS BAR -->
+      <div class="w-full max-w-md grid grid-cols-4 gap-2 mt-4">
+        <button onclick="handleSwipe('left')" class="p-3 bg-red-950/40 hover:bg-red-900/60 border border-red-500/50 rounded-xl flex flex-col items-center justify-center transition active:scale-95 group">
+          <span class="text-xl group-hover:scale-125 transition-transform">🗑️</span>
+          <span class="text-[10px] font-pixel text-red-400 mt-1">TRASH</span>
+          <span class="text-[8px] text-slate-400 font-mono">Left [A]</span>
+        </button>
+
+        <button onclick="handleSwipe('up')" class="p-3 bg-yellow-950/40 hover:bg-yellow-900/60 border border-neonYellow/50 rounded-xl flex flex-col items-center justify-center transition active:scale-95 group">
+          <span class="text-xl group-hover:scale-125 transition-transform">⚡</span>
+          <span class="text-[10px] font-pixel text-neonYellow mt-1">BANISH</span>
+          <span class="text-[8px] text-slate-400 font-mono">Up [W]</span>
+        </button>
+
+        <button onclick="handleSwipe('right')" class="p-3 bg-green-950/40 hover:bg-green-900/60 border border-neonGreen/50 rounded-xl flex flex-col items-center justify-center transition active:scale-95 group">
+          <span class="text-xl group-hover:scale-125 transition-transform">⭐</span>
+          <span class="text-[10px] font-pixel text-neonGreen mt-1">KEEP</span>
+          <span class="text-[8px] text-slate-400 font-mono">Right [D]</span>
+        </button>
+
+        <button id="undoBtn" onclick="triggerUndo()" disabled class="p-3 bg-purple-950/20 opacity-40 border border-purple-500/40 rounded-xl flex flex-col items-center justify-center transition active:scale-95 group cursor-not-allowed">
+          <span class="text-xl group-hover:rotate-[-45deg] transition-transform">↩️</span>
+          <span class="text-[10px] font-pixel text-purple-300 mt-1">UNDO</span>
+          <span id="undoCount" class="text-[8px] text-purple-400 font-mono">0 left</span>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- RIGHT PANEL: HIGH SCORES & BATTLE LOG (3 Cols) -->
+    <aside class="lg:col-span-3 space-y-4 order-3">
+      
+      <!-- Streak & Combo Multiplier Card -->
+      <div class="p-4 rounded-2xl bg-arcadePanel border border-neonPink/30 relative overflow-hidden">
+        <h2 class="text-xs font-bold tracking-widest text-neonPink font-mono uppercase mb-2">FRENZY MULTIPLIER</h2>
+        <div class="flex items-center gap-3">
+          <div id="comboBadge" class="text-3xl font-pixel text-white">x1.0</div>
+          <div class="flex-1">
+            <div class="text-[10px] text-slate-400 font-mono mb-1">STREAK CHARGE</div>
+            <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+              <div id="comboGauge" class="h-full bg-neonPink transition-all duration-150" style="width: 10%;"></div>
+            </div>
+          </div>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-2 font-mono">Consecutive swift actions trigger double score and fast-lane API batches.</p>
+      </div>
+
+      <!-- Execution History Feed -->
+      <div class="p-4 rounded-2xl bg-arcadePanel border border-slate-800">
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-xs font-bold tracking-widest text-slate-300 font-mono uppercase">PURGE TIMELINE</h2>
+          <span class="text-[10px] font-mono text-neonCyan">LAST ACTIONS</span>
+        </div>
+        <div id="historyList" class="space-y-2 text-xs font-mono max-h-64 overflow-y-auto scrollbar-thin">
+          <p class="text-slate-400 italic text-[11px]">No actions logged yet. Start blasting!</p>
+        </div>
+      </div>
+
+      <!-- Keyboard Guide -->
+      <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-400 space-y-1 font-mono">
+        <div class="text-white font-bold mb-1">🕹️ ARCADE KEYMAP:</div>
+        <div>[←] or [A]: Move to Trash / Archive</div>
+        <div>[↑] or [W]: Unsubscribe & Banish (+500 pts)</div>
+        <div>[→] or [D]: Star / Keep Safe</div>
+        <div>[Z] or [Backspace]: Undo Last Action</div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <!-- REAL API & SETTINGS MODAL -->
+  <div id="apiModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-neonCyan max-w-lg w-full rounded-3xl p-6 relative shadow-2xl">
+      <button onclick="closeApiModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white font-bold text-lg">✕</button>
+      
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-2xl">⚡</span>
+        <div>
+          <h3 class="text-lg font-bold text-white font-cyber">GMAIL REST API CONFIGURATION</h3>
+          <p class="text-xs text-slate-400">Execute actual deletions on live accounts or enjoy Demo Mode.</p>
+        </div>
+      </div>
+
+      <div class="space-y-4 text-xs font-mono">
+        <div>
+          <label class="block text-slate-300 mb-1">CURRENT OPERATING MODE</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="modeDemoBtn" onclick="setMode('demo')" class="p-2.5 rounded-xl border border-neonCyan bg-neonCyan/20 text-neonCyan font-bold">
+              🎮 DEMO MODE (Safe)
+            </button>
+            <button id="modeLiveBtn" onclick="setMode('live')" class="p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-400 font-bold hover:border-slate-500">
+              🔴 LIVE GMAIL API
+            </button>
+          </div>
+        </div>
+
+        <div id="liveApiForm" class="space-y-3 opacity-50 pointer-events-none transition-opacity">
+          <div>
+            <label class="block text-slate-300 mb-1">GOOGLE OAUTH ACCESS TOKEN</label>
+            <input id="oauthTokenInput" type="password" placeholder="ya29.a0AfH6SM..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:border-neonCyan outline-none">
+            <p class="text-[10px] text-slate-400 mt-1">Requires <code class="text-neonCyan">https://mail.google.com/</code> scope. All calls hit <code class="text-neonPink">/messages/{id}/trash</code>.</p>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-neonYellow/10 border border-neonYellow/30 text-neonYellow text-[11px] leading-relaxed">
+          💡 <strong>Hackathon Demo Guarantee:</strong> In Demo Mode, 500 mock emails behave identically to the real API with simulated network latencies and complete undo safety.
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="closeApiModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold">
+          DONE
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT GAME ENGINE & API DISPATCHER -->
+  <script>
+    /* =====================================================================
+       1. SYNTH AUDIO ENGINE (Web Audio API - Zero External Dependencies)
+       ===================================================================== */
+    let audioCtx = null;
+    let sfxEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playSound(type) {
+      if (!sfxEnabled) return;
+      try {
+        initAudio();
+        const ctx = audioCtx;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'trash') {
+          // Retro Laser Zap Down
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+          osc.start(now);
+          osc.stop(now + 0.15);
+        } else if (type === 'keep') {
+          // Pleasant High Arpeggio
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, now); // C5
+          osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        } else if (type === 'unsub') {
+          // Epic Super Laser / Explosive Zap
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(1200, now);
+          osc.frequency.exponentialRampToValueAtTime(220, now + 0.25);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } else if (type === 'undo') {
+          // Reverse pitch whoosh
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(150, now);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.18);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.18);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        }
+      } catch (e) {
+        console.warn("Audio Context init pending user interaction");
+      }
+    }
+
+    function toggleAudio() {
+      sfxEnabled = !sfxEnabled;
+      document.getElementById('soundIcon').innerText = sfxEnabled ? '🔊' : '🔇';
+      document.getElementById('soundLabel').innerText = sfxEnabled ? 'SFX ON' : 'SFX OFF';
+    }
+
+    /* =====================================================================
+       2. MOCK DATA GENERATOR (500 High-Variety Emails)
+       ===================================================================== */
+    const CATEGORIES = [
+      { name: "COLD SALES PITCH", color: "text-neonPink", icon: "💼" },
+      { name: "NEWSLETTER CLUTTER", color: "text-neonYellow", icon: "📰" },
+      { name: "PROMOTIONAL SPAM", color: "text-red-400", icon: "🛍️" },
+      { name: "SYSTEM ALERT", color: "text-neonCyan", icon: "⚠️" },
+      { name: "IMPORTANT COMMS", color: "text-neonGreen", icon: "⭐" }
+    ];
+
+    const SENDERS = [
+      { name: "Chad from GrowthHax", email: "chad@synergyscalers.io", cat: 0, sub: "Quick 15 min chat on boosting your B2B funnels?", snip: "I noticed your company profile and felt compelled to reach out. Are you free this Tuesday at 9am EST to brainstorm?" },
+      { name: "CryptoMoon Alpha Daily", email: "newsletter@cryptomoonblast.xyz", cat: 1, sub: "TOP 10 100x MEMECOINS YOU MUST BUY TODAY", snip: "The bull cycle is officially back! Here are the 10 unvetted tokens that the whales don't want you to know about." },
+      { name: "FastFashion Outlet", email: "noreply@flashsale-outlet.com", cat: 2, sub: "🔥 FINAL HOURS: 95% Off Everything in your cart", snip: "We noticed you left 42 items in your cart. Take an extra $5 off if you order within the next 4 minutes!" },
+      { name: "LinkedIn Notification", email: "updates@linkedin.com", cat: 1, sub: "Congratulate Dave on 3 weeks at his new role!", snip: "Dave and 38 other connections made moves this week. Send them a thumbs up to keep your network active." },
+      { name: "AWS CloudWatch Alert", email: "alerts@amazon-billing.aws", cat: 3, sub: "BILLING ALERT: Lambda invocations exceeded threshold", snip: "Your account us-east-1 reached $412.50 in unreserved compute charges today. Review your triggers immediately." },
+      { name: "Sarah (Product VP)", email: "sarah.vp@workplace.com", cat: 4, sub: "Q3 Roadmap Slide Deck Review & Signoff", snip: "Please check slide 14 before tomorrow's all-hands meeting. Need your final blessing on the engineering goals." },
+      { name: "GrowthHacker Digest", email: "digest@growthhacks.substack.com", cat: 1, sub: "How to get 1,000,000 users with zero spend", snip: "Step 1: Write an ultra long provocative LinkedIn carousel. Step 2: Ask everyone to comment 'Interested'..." },
+      { name: "Uber Receipts", email: "receipts@uber.com", cat: 4, sub: "Your trip on Friday night with Harpreet", snip: "Total: $24.80. Thanks for riding with Uber. View detailed route map and fare breakdown in the attached invoice." },
+      { name: "Unclaimed Inheritance Bureau", email: "barrister.richard@freemail.ng", cat: 2, sub: "CONFIDENTIAL PROPOSAL: $14.5M USD Transfer", snip: "I am legal counsel to a late client who shares your exact surname. Contact me immediately to facilitate swift wire transfer." },
+      { name: "Gym Membership HQ", email: "billing@planetmuscle.fit", cat: 2, sub: "We miss you! Come back for $1 annual renewal", snip: "It has been 14 months since your last swipe. We upgraded all our squat racks. Return today and get a free shaker cup!" }
+    ];
+
+    function generateMockDeck(count = 500) {
+      const deck = [];
+      for (let i = 0; i < count; i++) {
+        const template = SENDERS[i % SENDERS.length];
+        const sizeKB = Math.floor(Math.random() * 4500) + 120; // 120KB to 4.6MB
+        deck.push({
+          id: `msg_${1000 + i}`,
+          sender: template.name,
+          email: template.email,
+          category: CATEGORIES[template.cat].name,
+          catColor: CATEGORIES[template.cat].color,
+          icon: CATEGORIES[template.cat].icon,
+          subject: i > 9 ? `[Batch ${Math.floor(i/10)}] ${template.sub}` : template.sub,
+          snippet: template.snip,
+          sizeKB: sizeKB,
+          timeSavedSec: 15
+        });
+      }
+      return deck;
+    }
+
+    /* =====================================================================
+       3. AI BATTLE COMMENTARY ENGINE (Snarky Gemini Persona)
+       ===================================================================== */
+    const AI_QUIPS = {
+      trash: [
+        "Vaporized! Cold sales guy is currently crying into his spreadsheet.",
+        "Obliterated. That promo coupon expired before the pandemic anyway.",
+        "Deleted! Sent into the digital void where spam belongs.",
+        "Clean hit! That sender just lost their quarterly marketing KPI.",
+        "Demolished into binary stardust. Beautiful flick!"
+      ],
+      unsub: [
+        "BANISHED! Their automated mailserver has been struck with holy thunder.",
+        "Unsubscribed with extreme prejudice! Their unsubscribe webhook just melted.",
+        "SUPER COMBO! Their marketing department is in shambles.",
+        "Permanent exile! That newsletter will never touch your soul again."
+      ],
+      keep: [
+        "VIP preserved! Important eyes-only intel protected.",
+        "Kept safe in vault! Work saved, career defended.",
+        "Star status granted! Even hackers respect good communications."
+      ],
+      undo: [
+        "CHRONO-REWIND! Time machine activated. Email rescued from the trash pit.",
+        "Safety net triggered! You spared its life at the final millisecond."
+      ]
+    };
+
+    function triggerAICommentary(actionType, emailItem) {
+      const quipList = AI_QUIPS[actionType];
+      const quip = quipList[Math.floor(Math.random() * quipList.length)];
+      const commentaryEl = document.getElementById('aiComment');
+      commentaryEl.classList.add('opacity-0');
+      setTimeout(() => {
+        commentaryEl.innerText = `"${quip}"`;
+        commentaryEl.classList.remove('opacity-0');
+      }, 120);
+    }
+
+    /* =====================================================================
+       4. GAMEPLAY STATE & LIVE DISPATCH
+       ===================================================================== */
+    let deck = generateMockDeck(500);
+    const initialDeckSize = deck.length;
+    let score = 0;
+    let streak = 0;
+    let multiplier = 1.0;
+    let purgedCount = 0;
+    let totalBytesSaved = 0;
+    let totalTimeSavedSec = 0;
+    let undoStack = []; // stores last 5 actions
+
+    let appMode = 'demo'; // 'demo' or 'live'
+    let gmailOAuthToken = '';
+
+    function updateHUD() {
+      document.getElementById('scoreDisplay').innerText = score.toString().padStart(6, '0');
+      document.getElementById('streakDisplay').innerText = `x${multiplier.toFixed(1)}`;
+      document.getElementById('remainingDisplay').innerText = deck.length;
+      document.getElementById('purgedCount').innerText = purgedCount;
+      document.getElementById('storageFreed').innerText = (totalBytesSaved / (1024 * 1024)).toFixed(1) + " MB";
+      document.getElementById('timeSaved').innerText = (totalTimeSavedSec / 60).toFixed(1) + " min";
+      
+      const carbonGrams = (totalBytesSaved / (1024 * 1024) * 0.2).toFixed(1);
+      document.getElementById('carbonSaved').innerText = `${carbonGrams} g CO₂`;
+
+      // Pressure Gauge
+      const ratio = deck.length / initialDeckSize;
+      const pressurePercent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+      document.getElementById('pressurePercent').innerText = `${pressurePercent}% OVERLOAD`;
+      document.getElementById('pressureBar').style.width = `${pressurePercent}%`;
+
+      // Frenzy Multiplier
+      document.getElementById('comboBadge').innerText = `x${multiplier.toFixed(1)}`;
+      const comboCharge = Math.min(100, (streak % 10) * 10);
+      document.getElementById('comboGauge').style.width = `${comboCharge}%`;
+
+      // Undo button state
+      const undoBtn = document.getElementById('undoBtn');
+      const undoCountEl = document.getElementById('undoCount');
+      if (undoStack.length > 0) {
+        undoBtn.disabled = false;
+        undoBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+        undoCountEl.innerText = `${undoStack.length} left`;
+      } else {
+        undoBtn.disabled = true;
+        undoBtn.classList.add('opacity-40', 'cursor-not-allowed');
+        undoCountEl.innerText = `0 left`;
+      }
+    }
+
+    function renderCurrentCard() {
+      if (deck.length === 0) {
+        document.getElementById('victoryOverlay').classList.remove('hidden');
+        return;
+      }
+      const item = deck[0];
+      const card = document.getElementById('activeCard');
+      card.style.transform = 'translate(0px, 0px) rotate(0deg)';
+      card.style.opacity = '1';
+
+      document.getElementById('cardCategory').innerText = item.category;
+      document.getElementById('cardCategory').className = `px-2.5 py-1 rounded-full text-[10px] font-pixel bg-slate-900 border border-slate-700 ${item.catColor}`;
+      document.getElementById('cardSize').innerText = `${(item.sizeKB / 1024).toFixed(1)} MB`;
+      document.getElementById('cardAvatar').innerText = item.icon;
+      document.getElementById('cardSender').innerText = item.sender;
+      document.getElementById('cardEmail').innerText = item.email;
+      document.getElementById('cardSubject').innerText = item.subject;
+      document.getElementById('cardSnippet').innerText = item.snippet;
+    }
+
+    /* =====================================================================
+       5. REAL API / DEMO DISPATCH EXECUTOR
+       ===================================================================== */
+    async function executeRealWorldAction(action, item) {
+      const consoleEl = document.getElementById('apiConsole');
+      const timeStr = new Date().toLocaleTimeString();
+
+      if (appMode === 'demo') {
+        let endpoint = action === 'trash' ? 'POST /gmail/v1/users/me/messages/trash' 
+                     : action === 'unsub' ? 'POST /api/unsubscribe + BANISH' 
+                     : 'POST /gmail/v1/users/me/messages/modify (STARRED)';
+        
+        const logLine = document.createElement('p');
+        logLine.innerHTML = `<span class="text-neonCyan">[${timeStr}]</span> ${endpoint} <span class="text-slate-300">#${item.id}</span> [200 OK]`;
+        consoleEl.prepend(logLine);
+      } else {
+        // Live Mode: Dispatch actual Gmail API fetch request
+        if (!gmailOAuthToken) {
+          logConsoleError("Gmail OAuth Token is missing! Please configure in settings.");
+          return;
+        }
+
+        try {
+          if (action === 'trash') {
+            await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}/trash`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${gmailOAuthToken}` }
+            });
+            logConsoleSuccess(`Live Gmail Message #${item.id} moved to Trash!`);
+          } else if (action === 'keep') {
+            await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${item.id}/modify`, {
+              method: 'POST',
+              headers: { 
+                'Authorization': `Bearer ${gmailOAuthToken}`,
+                'Content-Type': 'application/json' 
+              },
+              body: JSON.stringify({ addLabelIds: ['STARRED'] })
+            });
+            logConsoleSuccess(`Live Gmail Message #${item.id} Starred & Protected!`);
+          }
+        } catch (err) {
+          logConsoleError(`Live API Error: ${err.message}`);
+        }
+      }
+    }
+
+    function logConsoleSuccess(msg) {
+      const consoleEl = document.getElementById('apiConsole');
+      const p = document.createElement('p');
+      p.className = 'text-neonGreen';
+      p.innerText = `>> ${msg}`;
+      consoleEl.prepend(p);
+    }
+
+    function logConsoleError(msg) {
+      const consoleEl = document.getElementById('apiConsole');
+      const p = document.createElement('p');
+      p.className = 'text-red-400';
+      p.innerText = `!! ${msg}`;
+      consoleEl.prepend(p);
+    }
+
+    function recordHistory(action, item) {
+      const list = document.getElementById('historyList');
+      const entry = document.createElement('div');
+      entry.className = "flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-[11px]";
+      
+      const badge = action === 'trash' ? '<span class="text-red-400 font-bold">TRASHED</span>'
+                  : action === 'unsub' ? '<span class="text-neonYellow font-bold">BANISHED</span>'
+                  : '<span class="text-neonGreen font-bold">KEPT</span>';
+
+      entry.innerHTML = `
+        <div class="truncate max-w-[150px]">
+          <span class="text-white">${item.sender}</span>
+          <span class="block text-[9px] text-slate-400 truncate">${item.subject}</span>
+        </div>
+        ${badge}
+      `;
+      list.prepend(entry);
+    }
+
+    /* =====================================================================
+       6. SWIPE, KEYBOARD, AND UNDO MECHANICS
+       ==================================================================== */
+    function handleSwipe(direction) {
+      if (deck.length === 0) return;
+      const currentItem = deck[0];
+      const card = document.getElementById('activeCard');
+
+      // Calculate score and multipliers
+      streak++;
+      if (streak % 5 === 0 && multiplier < 4.0) {
+        multiplier += 0.5;
+      }
+
+      let scoreGain = 100 * multiplier;
+      let actionType = 'trash';
+
+      if (direction === 'left') {
+        actionType = 'trash';
+        card.style.transform = 'translate(-600px, 50px) rotate(-35deg)';
+        playSound('trash');
+        purgedCount++;
+        totalBytesSaved += currentItem.sizeKB * 1024;
+        totalTimeSavedSec += currentItem.timeSavedSec;
+      } else if (direction === 'right') {
+        actionType = 'keep';
+        scoreGain = 50 * multiplier;
+        card.style.transform = 'translate(600px, 50px) rotate(35deg)';
+        playSound('keep');
+      } else if (direction === 'up') {
+        actionType = 'unsub';
+        scoreGain = 500 * multiplier; // High-value banish combo
+        card.style.transform = 'translate(0px, -600px) rotate(0deg)';
+        playSound('unsub');
+        document.body.classList.add('shake');
+        setTimeout(() => document.body.classList.remove('shake'), 200);
+        purgedCount++;
+        totalBytesSaved += (currentItem.sizeKB * 1024) * 1.5;
+        totalTimeSavedSec += 60; // Huge time saved from recurring unsub
+      }
+
+      score += Math.round(scoreGain);
+      card.style.opacity = '0';
+
+      // Save to Undo Stack (Max 5)
+      undoStack.push({
+        item: currentItem,
+        action: actionType,
+        scoreDelta: Math.round(scoreGain),
+        sizeBytes: currentItem.sizeKB * 1024,
+        timeSec: currentItem.timeSavedSec
+      });
+      if (undoStack.length > 5) undoStack.shift();
+
+      // Dispatch Background Execution & AI Speech
+      executeRealWorldAction(actionType, currentItem);
+      recordHistory(actionType, currentItem);
+      triggerAICommentary(actionType, currentItem);
+
+      // Advance Deck
+      setTimeout(() => {
+        deck.shift();
+        renderCurrentCard();
+        updateHUD();
+      }, 150);
+    }
+
+    function triggerUndo() {
+      if (undoStack.length === 0) return;
+      playSound('undo');
+      const lastAction = undoStack.pop();
+
+      // Revert Stats
+      score = Math.max(0, score - lastAction.scoreDelta);
+      if (lastAction.action === 'trash' || lastAction.action === 'unsub') {
+        purgedCount = Math.max(0, purgedCount - 1);
+        totalBytesSaved = Math.max(0, totalBytesSaved - lastAction.sizeBytes);
+        totalTimeSavedSec = Math.max(0, totalTimeSavedSec - lastAction.timeSec);
+      }
+
+      // Restore card to top of deck
+      deck.unshift(lastAction.item);
+      streak = Math.max(0, streak - 1);
+      multiplier = Math.max(1.0, multiplier - 0.5);
+
+      triggerAICommentary('undo', lastAction.item);
+
+      // Visual flash
+      const card = document.getElementById('activeCard');
+      card.style.transform = 'translate(0, 0) scale(0.9)';
+      setTimeout(() => {
+        card.style.transform = 'translate(0, 0) scale(1)';
+      }, 50);
+
+      renderCurrentCard();
+      updateHUD();
+    }
+
+    function resetGame() {
+      deck = generateMockDeck(500);
+      score = 0;
+      streak = 0;
+      multiplier = 1.0;
+      purgedCount = 0;
+      totalBytesSaved = 0;
+      totalTimeSavedSec = 0;
+      undoStack = [];
+      document.getElementById('victoryOverlay').classList.add('hidden');
+      renderCurrentCard();
+      updateHUD();
+    }
+
+    /* =====================================================================
+       7. TOUCH & MOUSE GESTURE LISTENERS
+       ===================================================================== */
+    const cardEl = document.getElementById('activeCard');
+    let startX = 0, startY = 0, currentX = 0, currentY = 0;
+    let isDragging = false;
+
+    function handlePointerStart(e) {
+      if (e.target.closest('button')) return;
+      isDragging = true;
+      startX = e.clientX || (e.touches && e.touches[0].clientX);
+      startY = e.clientY || (e.touches && e.touches[0].clientY);
+      cardEl.style.transition = 'none';
+    }
+
+    function handlePointerMove(e) {
+      if (!isDragging) return;
+      currentX = e.clientX || (e.touches && e.touches[0].clientX);
+      currentY = e.clientY || (e.touches && e.touches[0].clientY);
+      const deltaX = currentX - startX;
+      const deltaY = currentY - startY;
+      const rotate = deltaX * 0.08;
+
+      cardEl.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(${rotate}deg)`;
+
+      // Dynamic indicator opacity feedback
+      document.getElementById('indicatorLeft').style.opacity = deltaX < -50 ? '1' : '0.2';
+      document.getElementById('indicatorRight').style.opacity = deltaX > 50 ? '1' : '0.2';
+      document.getElementById('indicatorTop').style.opacity = deltaY < -50 ? '1' : '0.2';
+    }
+
+    function handlePointerEnd() {
+      if (!isDragging) return;
+      isDragging = false;
+      cardEl.style.transition = 'transform 0.2s ease-out, opacity 0.2s ease-out';
+      const deltaX = currentX - startX;
+      const deltaY = currentY - startY;
+
+      // Reset cues
+      document.getElementById('indicatorLeft').style.opacity = '0.2';
+      document.getElementById('indicatorRight').style.opacity = '0.2';
+      document.getElementById('indicatorTop').style.opacity = '0.2';
+
+      const threshold = 100;
+      if (deltaY < -threshold && Math.abs(deltaX) < 120) {
+        handleSwipe('up');
+      } else if (deltaX < -threshold) {
+        handleSwipe('left');
+      } else if (deltaX > threshold) {
+        handleSwipe('right');
+      } else {
+        // Snap back
+        cardEl.style.transform = 'translate(0px, 0px) rotate(0deg)';
+      }
+    }
+
+    cardEl.addEventListener('mousedown', handlePointerStart);
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerEnd);
+
+    cardEl.addEventListener('touchstart', handlePointerStart, { passive: true });
+    window.addEventListener('touchmove', handlePointerMove, { passive: true });
+    window.addEventListener('touchend', handlePointerEnd);
+
+    /* KEYBOARD CONTROLS */
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement.tagName === 'INPUT') return;
+      if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') {
+        handleSwipe('left');
+      } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') {
+        handleSwipe('right');
+      } else if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'w') {
+        handleSwipe('up');
+      } else if (e.key.toLowerCase() === 'z' || e.key === 'Backspace') {
+        triggerUndo();
+      }
+    });
+
+    /* =====================================================================
+       8. MODAL & MODE SWITCHER
+       ===================================================================== */
+    function openApiModal() {
+      document.getElementById('apiModal').classList.remove('hidden');
+    }
+
+    function closeApiModal() {
+      gmailOAuthToken = document.getElementById('oauthTokenInput').value.trim();
+      document.getElementById('apiModal').classList.add('hidden');
+    }
+
+    function setMode(mode) {
+      appMode = mode;
+      const demoBtn = document.getElementById('modeDemoBtn');
+      const liveBtn = document.getElementById('modeLiveBtn');
+      const badge = document.getElementById('apiStatusBadge');
+      const form = document.getElementById('liveApiForm');
+
+      if (mode === 'demo') {
+        demoBtn.className = "p-2.5 rounded-xl border border-neonCyan bg-neonCyan/20 text-neonCyan font-bold";
+        liveBtn.className = "p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-400 font-bold hover:border-slate-500";
+        badge.innerText = "DEMO MODE";
+        badge.parentElement.className = "px-3 py-1.5 rounded-lg border border-neonPink/50 bg-neonPink/10 hover:bg-neonPink/20 text-neonPink text-xs font-bold transition flex items-center gap-1";
+        form.classList.add('opacity-50', 'pointer-events-none');
+      } else {
+        liveBtn.className = "p-2.5 rounded-xl border border-red-500 bg-red-950/40 text-red-400 font-bold";
+        demoBtn.className = "p-2.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-400 font-bold hover:border-slate-500";
+        badge.innerText = "LIVE REST API";
+        badge.parentElement.className = "px-3 py-1.5 rounded-lg border border-red-500/80 bg-red-900/30 hover:bg-red-900/40 text-red-400 text-xs font-bold transition flex items-center gap-1 animate-pulse";
+        form.classList.remove('opacity-50', 'pointer-events-none');
+      }
+    }
+
+    // Initialize Game on Load
+    window.addEventListener('DOMContentLoaded', () => {
+      renderCurrentCard();
+      updateHUD();
+    });
+  </script>
+</body>
+</html>
